@@ -34,25 +34,7 @@ papaya.viewer.ColorTable = papaya.viewer.ColorTable || function (lutName, baseIm
     this.knotMax = this.lutData[this.lutData.length - 1];
     this.useGradation = (typeof lut.gradation === "undefined") || lut.gradation;
 
-    this.canvasIcon = document.createElement("canvas");
-    this.canvasIcon.width = papaya.viewer.ColorTable.ICON_SIZE;
-    this.canvasIcon.height = papaya.viewer.ColorTable.ICON_SIZE;
-    this.contextIcon = this.canvasIcon.getContext("2d");
-    this.imageDataIcon = this.contextIcon.createImageData(papaya.viewer.ColorTable.ICON_SIZE,
-        papaya.viewer.ColorTable.ICON_SIZE);
-    this.icon = null;
-
-    this.canvasBar = document.createElement("canvas");
-    this.canvasBar.width = papaya.viewer.ColorTable.COLOR_BAR_WIDTH;
-    this.canvasBar.height = papaya.viewer.ColorTable.COLOR_BAR_HEIGHT;
-    this.contextBar = this.canvasBar.getContext("2d");
-    this.imageDataBar = this.contextBar.createImageData(papaya.viewer.ColorTable.COLOR_BAR_WIDTH,
-        papaya.viewer.ColorTable.COLOR_BAR_HEIGHT);
-    this.colorBar = null;
-
     this.updateLUT(papaya.viewer.ColorTable.LUT_MIN, papaya.viewer.ColorTable.LUT_MAX);
-    this.updateIcon();
-    this.updateColorBar();
 };
 
 
@@ -80,6 +62,10 @@ papaya.viewer.ColorTable.TABLE_BLUE2WHITE = {"name": "Blue Overlay", "data": [[0
     [0.95, 0, 1, 1], [1, 1, 1, 1]], "gradation": true};
 papaya.viewer.ColorTable.TABLE_DTI_SPECTRUM = {"name": "Spectrum", "data": [[0, 1, 0, 0], [0.5, 0, 1, 0], [1, 0, 0, 1]],
     "gradation": true};
+papaya.viewer.ColorTable.TABLE_FIRE = {"name": "Fire", "data": [[0, 0, 0, 0], [0.06, 0, 0, 0.36], [0.16, 0.29, 0, 0.75],
+    [0.22, 0.48, 0, 0.89], [0.31, 0.68, 0, 0.6], [0.37, 0.76, 0, 0.36], [0.5, 0.94, 0.31, 0], [0.56, 1, 0.45, 0],
+    [0.81, 1, 0.91, 0], [0.88, 1, 1, 0.38], [1,1,1,1]], "gradation": true};
+    
 
 papaya.viewer.ColorTable.ARROW_ICON = "data:image/gif;base64,R0lGODlhCwARAPfGMf//////zP//mf//Zv//M///AP/M///MzP/Mmf/M" +
     "Zv/MM//MAP+Z//+ZzP+Zmf+ZZv+ZM/+ZAP9m//9mzP9mmf9mZv9mM/9mAP8z//8zzP8zmf8zZv8zM/8zAP8A//8AzP8Amf8AZv8AM/8AAMz//8z/" +
@@ -108,10 +94,11 @@ papaya.viewer.ColorTable.OVERLAY_COLOR_TABLES = [
 papaya.viewer.ColorTable.TABLE_ALL = [
     papaya.viewer.ColorTable.TABLE_GRAYSCALE,
     papaya.viewer.ColorTable.TABLE_SPECTRUM,
-    papaya.viewer.ColorTable.TABLE_RED2YELLOW,
-    papaya.viewer.ColorTable.TABLE_BLUE2GREEN,
+    papaya.viewer.ColorTable.TABLE_FIRE,
     papaya.viewer.ColorTable.TABLE_HOTANDCOLD,
     papaya.viewer.ColorTable.TABLE_GOLD,
+    papaya.viewer.ColorTable.TABLE_RED2YELLOW,
+    papaya.viewer.ColorTable.TABLE_BLUE2GREEN,
     papaya.viewer.ColorTable.TABLE_RED2WHITE,
     papaya.viewer.ColorTable.TABLE_GREEN2WHITE,
     papaya.viewer.ColorTable.TABLE_BLUE2WHITE
@@ -244,50 +231,4 @@ papaya.viewer.ColorTable.prototype.lookupBlue = function (index) {
     }
 
     return 0;
-};
-
-
-
-papaya.viewer.ColorTable.prototype.updateIcon = function () {
-    var step, ctrY, ctrX, index, value;
-
-    step = papaya.viewer.ColorTable.LUT_MAX / papaya.viewer.ColorTable.ICON_SIZE;
-
-    for (ctrY = 0; ctrY < papaya.viewer.ColorTable.ICON_SIZE; ctrY += 1) {
-        for (ctrX = 0; ctrX < papaya.viewer.ColorTable.ICON_SIZE; ctrX += 1) {
-            index = ((ctrY * papaya.viewer.ColorTable.ICON_SIZE) + ctrX) * 4;
-            value = Math.round(ctrX * step);
-
-            this.imageDataIcon.data[index] = this.lookupRed(value);
-            this.imageDataIcon.data[index + 1] = this.lookupGreen(value);
-            this.imageDataIcon.data[index + 2] = this.lookupBlue(value);
-            this.imageDataIcon.data[index + 3] = 255;
-        }
-    }
-
-    this.contextIcon.putImageData(this.imageDataIcon, 0, 0);
-    this.icon = this.canvasIcon.toDataURL();
-};
-
-
-
-papaya.viewer.ColorTable.prototype.updateColorBar = function () {
-    var step, ctrY, ctrX, index, value;
-
-    step = papaya.viewer.ColorTable.LUT_MAX / papaya.viewer.ColorTable.COLOR_BAR_WIDTH;
-
-    for (ctrY = 0; ctrY < papaya.viewer.ColorTable.COLOR_BAR_HEIGHT; ctrY += 1) {
-        for (ctrX = 0; ctrX < papaya.viewer.ColorTable.COLOR_BAR_WIDTH; ctrX += 1) {
-            index = ((ctrY * papaya.viewer.ColorTable.COLOR_BAR_WIDTH) + ctrX) * 4;
-            value = Math.round(ctrX * step);
-
-            this.imageDataBar.data[index] = this.lookupRed(value);
-            this.imageDataBar.data[index + 1] = this.lookupGreen(value);
-            this.imageDataBar.data[index + 2] = this.lookupBlue(value);
-            this.imageDataBar.data[index + 3] = 255;
-        }
-    }
-
-    this.contextBar.putImageData(this.imageDataBar, 0, 0);
-    this.colorBar = this.canvasBar.toDataURL();
 };

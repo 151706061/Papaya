@@ -9,7 +9,7 @@
  PAPAYA_CONTROL_SLIDER_CSS, PAPAYA_CONTROL_GOTO_CENTER_BUTTON_CSS, PAPAYA_CONTROL_GOTO_ORIGIN_BUTTON_CSS,
  PAPAYA_CONTROL_SWAP_BUTTON_CSS, PAPAYA_CONTROL_DIRECTION_SLIDER, PAPAYA_CONTROL_MAIN_SLIDER,
  PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS, PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS,
- PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS, PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS,
+ PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS, PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS, PAPAYA_CONTROL_BAR_LABELS_CSS,
  PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS, PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS
  */
 
@@ -45,24 +45,27 @@ papaya.Container = papaya.Container || function (containerHtml) {
     this.collapsable = false;
     this.orthogonal = true;
     this.orthogonalTall = false;
+    this.orthogonalDynamic = false;
     this.kioskMode = false;
     this.showControls = true;
     this.showControlBar = false;
+    this.showImageButtons = true;
     this.fullScreenPadding = true;
     this.combineParametric = false;
     this.dropTimeout = null;
     this.showRuler = false;
     this.syncOverlaySeries = true;
-    this.surfaceLink = false;
+    this.surfaceParams = {};
     this.contextManager = null;
     this.allowScroll = true;
+    this.loadingComplete = null;
     this.resetComponents();
 };
 
 
 /*** Static Pseudo-constants ***/
 
-papaya.Container.LICENSE_TEXT = "THIS PRODUCT IS NOT FOR CLINICAL USE.<br /><br />" +
+papaya.Container.LICENSE_TEXT = "<p>THIS PRODUCT IS NOT FOR CLINICAL USE.<br /><br />" +
     "This software is available for use, as is, free of charge.  The software and data derived from this software " +
     "may not be used for clinical purposes.<br /><br />" +
     "The authors of this software make no representations or warranties about the suitability of the software, " +
@@ -71,10 +74,11 @@ papaya.Container.LICENSE_TEXT = "THIS PRODUCT IS NOT FOR CLINICAL USE.<br /><br 
     "shall not be liable for any damages suffered by licensee as a result of using or modifying this software or its " +
     "derivatives.<br /><br />" +
     "By using this software, you agree to be bounded by the terms of this license.  If you do not agree to the terms " +
-    "of this license, do not use this software.";
+    "of this license, do not use this software.</p>";
 
 papaya.Container.KEYBOARD_REF_TEXT = "<span style='color:#B5CBD3'>[Spacebar]</span> Cycle the main slice view in a clockwise rotation.<br /><br />" +
     "<span style='color:#B5CBD3'>[Page Up]</span> or <span style='color:#B5CBD3'>[']</span> Increment the axial slice.<br /><br />" +
+    "<span style='color:#B5CBD3'>[Page Down]</span> or <span style='color:#B5CBD3'>[/]</span> Decrement the axial slice.<br /><br />" +
     "<span style='color:#B5CBD3'>[Arrow Up]</span> and <span style='color:#B5CBD3'>[Arrow Down]</span> Increment/decrement the coronal slice.<br /><br />" +
     "<span style='color:#B5CBD3'>[Arrow Right]</span> and <span style='color:#B5CBD3'>[Arrow Left]</span> Increment/decrement the sagittal slice.<br /><br />" +
     "<span style='color:#B5CBD3'>[g]</span> and <span style='color:#B5CBD3'>[v]</span> Increment/decrement main slice.<br /><br />" +
@@ -98,8 +102,8 @@ papaya.Container.DICOM_SUPPORT = true;
 
 papaya.Container.syncViewers = false;
 papaya.Container.syncViewersWorld = false;
+papaya.Container.allowPropagation = false;
 papaya.Container.papayaLastHoveredViewer = null;
-papaya.Container.dti = false;
 
 
 /*** Static Methods ***/
@@ -120,6 +124,14 @@ papaya.Container.resetViewer = function (index, params) {
 
         if (params.loadedEncodedImages) {
             params.encodedImages = params.loadedEncodedImages;
+        }
+
+        if (params.loadedSurfaces) {
+            params.surfaces = params.loadedSurfaces;
+        }
+
+        if (params.loadedEncodedSurfaces) {
+            params.encodedSurfaces = params.loadedEncodedSurfaces;
         }
 
         if (params.loadedFiles) {
@@ -222,8 +234,8 @@ papaya.Container.findParameters = function (containerHTML) {
 
 
 
-papaya.Container.fillContainerHTML = function (containerHTML, isDefault, params) {
-    var toolbarHTML, viewerHTML, displayHTML;
+papaya.Container.fillContainerHTML = function (containerHTML, isDefault, params, replaceIndex) {
+    var toolbarHTML, viewerHTML, displayHTML, index;
 
     if (isDefault) {
         toolbarHTML = containerHTML.find("#" + PAPAYA_DEFAULT_TOOLBAR_ID);
@@ -254,44 +266,50 @@ papaya.Container.fillContainerHTML = function (containerHTML, isDefault, params)
         console.log("This method of adding a Papaya container is deprecated.  " +
             "Try simply <div class='papaya' data-params='params'></div> instead...");
     } else {
-        containerHTML.attr("id", PAPAYA_DEFAULT_CONTAINER_ID + papayaContainers.length);
+        if (replaceIndex !== undefined) {
+            index = replaceIndex;
+        } else {
+            index = papayaContainers.length;
+        }
+
+        containerHTML.attr("id", PAPAYA_DEFAULT_CONTAINER_ID + index);
 
         if (!params || (params.kioskMode === undefined) || !params.kioskMode) {
-            containerHTML.append("<div id='" + (PAPAYA_DEFAULT_TOOLBAR_ID + papayaContainers.length) +
+            containerHTML.append("<div id='" + (PAPAYA_DEFAULT_TOOLBAR_ID + index) +
             "' class='" + PAPAYA_TOOLBAR_CSS + "'></div>");
         }
 
-        containerHTML.append("<div id='" + (PAPAYA_DEFAULT_VIEWER_ID + papayaContainers.length) +
+        containerHTML.append("<div id='" + (PAPAYA_DEFAULT_VIEWER_ID + index) +
             "' class='" + PAPAYA_VIEWER_CSS + "'></div>");
-        containerHTML.append("<div id='" + (PAPAYA_DEFAULT_DISPLAY_ID + papayaContainers.length) +
+        containerHTML.append("<div id='" + (PAPAYA_DEFAULT_DISPLAY_ID + index) +
             "' class='" + PAPAYA_DISPLAY_CSS + "'></div>");
 
-        if (params && params.showControlBar) {
+        if (params && params.showControlBar && ((params.showControls === undefined) || params.showControls)) {
             containerHTML.append(
-                "<div id='" + PAPAYA_KIOSK_CONTROLS_CSS + papayaContainers.length + "' class='" + PAPAYA_KIOSK_CONTROLS_CSS + "'>" +
-                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + papayaContainers.length) + "main" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_MAIN_SLIDER + "'>" +
-                "<span>Slice: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> "  +
+                "<div id='" + PAPAYA_KIOSK_CONTROLS_CSS + index + "' class='" + PAPAYA_KIOSK_CONTROLS_CSS + "'>" +
+                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + index) + "main" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_MAIN_SLIDER + "'>" +
+                "<span class='" + PAPAYA_CONTROL_BAR_LABELS_CSS+ "'>Slice: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> "  +
                 "</div>" +
 
-                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + papayaContainers.length) + "axial" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
-                "<span>Axial: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> " +
+                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + index) + "axial" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
+                "<span class='" + PAPAYA_CONTROL_BAR_LABELS_CSS+ "'>Axial: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> " +
                 "</div>" +
 
-                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + papayaContainers.length) + "coronal" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
-                "<span>Coronal: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>"+ " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> "  +
+                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + index) + "coronal" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
+                "<span class='" + PAPAYA_CONTROL_BAR_LABELS_CSS+ "'>Coronal: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>"+ " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> "  +
                 "</div>" +
 
-                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + papayaContainers.length) + "sagittal" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
-                "<span>Sagittal: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>"+ " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> "  +
+                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + index) + "sagittal" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
+                "<span class='" + PAPAYA_CONTROL_BAR_LABELS_CSS+ "'>Sagittal: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>+</button>"+ " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>-</button> "  +
                 "</div>" +
 
-                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + papayaContainers.length) + "series" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
-                "<span>Series: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>&lt;</button>"+ " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>&gt;</button> "  +
+                "<div id='" + (PAPAYA_DEFAULT_SLIDER_ID + index) + "series" + "' class='" + PAPAYA_SLIDER_CSS + " " + PAPAYA_CONTROL_DIRECTION_SLIDER + "'>" +
+                "<span class='" + PAPAYA_CONTROL_BAR_LABELS_CSS+ "'>Series: </span>" + " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>&lt;</button>"+ " <button type='button' class='" + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS + "'>&gt;</button> "  +
                 "</div>" +
                 "&nbsp;&nbsp;&nbsp;" +
-                "<button type='button' " + (params.kioskMode ? "" : "style='float:right;margin-left:5px;' ") + "class='" + PAPAYA_CONTROL_SWAP_BUTTON_CSS + "'>Swap Main Slice</button> " +
-                "<button type='button' " + (params.kioskMode ? "" : "style='float:right;margin-left:5px;' ") + "class='" + PAPAYA_CONTROL_GOTO_CENTER_BUTTON_CSS + "'>Go To Center</button> " +
-                "<button type='button' " + (params.kioskMode ? "" : "style='float:right;margin-left:5px;' ") + "class='" + PAPAYA_CONTROL_GOTO_ORIGIN_BUTTON_CSS + "'>Go To Origin</button> " +
+                "<button type='button' " + ((params.kioskMode && ((params.showImageButtons === undefined) || params.showImageButtons)) ? "" : "style='float:right;margin-left:5px;' ") + "class='" + PAPAYA_CONTROL_SWAP_BUTTON_CSS + "'>Swap View</button> " +
+                "<button type='button' " + ((params.kioskMode && ((params.showImageButtons === undefined) || params.showImageButtons)) ? "" : "style='float:right;margin-left:5px;' ") + "class='" + PAPAYA_CONTROL_GOTO_CENTER_BUTTON_CSS + "'>Go To Center</button> " +
+                "<button type='button' " + ((params.kioskMode && ((params.showImageButtons === undefined) || params.showImageButtons)) ? "" : "style='float:right;margin-left:5px;' ") + "class='" + PAPAYA_CONTROL_GOTO_ORIGIN_BUTTON_CSS + "'>Go To Origin</button> " +
                 "</div>");
 
             $("." + PAPAYA_CONTROL_INCREMENT_BUTTON_CSS).prop('disabled', true);
@@ -299,17 +317,17 @@ papaya.Container.fillContainerHTML = function (containerHTML, isDefault, params)
             $("." + PAPAYA_CONTROL_GOTO_CENTER_BUTTON_CSS).prop('disabled', true);
             $("." + PAPAYA_CONTROL_GOTO_ORIGIN_BUTTON_CSS).prop('disabled', true);
         } else if (params && ((params.showControls === undefined ) || params.showControls)) {
-            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS + papayaContainers.length) + "' class='" + PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS + "'>+</button> ");
-            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS + papayaContainers.length) + "' class='" + PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS + "'>-</button> ");
-            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS + papayaContainers.length) + "' class='" + PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS + "'>Swap Main Slice</button> ");
-            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS + papayaContainers.length) + "' class='" + PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS + "'>Go To Center</button> ");
-            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS + papayaContainers.length) + "' class='" + PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS + "'>Go To Origin</button> ");
+            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS + index) + "' class='" + PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS + "'>+</button> ");
+            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS + index) + "' class='" + PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS + "'>-</button> ");
+            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS + index) + "' class='" + PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS + "'>Swap View</button> ");
+            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS + index) + "' class='" + PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS + "'>Go To Center</button> ");
+            containerHTML.append("<button type='button' id='"+ (PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS + index) + "' class='" + PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS + "'>Go To Origin</button> ");
 
-            $("#" + PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS + papayaContainers.length).css({display: "none"});
-            $("#" + PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS + papayaContainers.length).css({display: "none"});
-            $("#" + PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS + papayaContainers.length).css({display: "none"});
-            $("#" + PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS + papayaContainers.length).css({display: "none"});
-            $("#" + PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS + papayaContainers.length).css({display: "none"});
+            $("#" + PAPAYA_CONTROL_MAIN_INCREMENT_BUTTON_CSS + index).css({display: "none"});
+            $("#" + PAPAYA_CONTROL_MAIN_DECREMENT_BUTTON_CSS + index).css({display: "none"});
+            $("#" + PAPAYA_CONTROL_MAIN_SWAP_BUTTON_CSS + index).css({display: "none"});
+            $("#" + PAPAYA_CONTROL_MAIN_GOTO_CENTER_BUTTON_CSS + index).css({display: "none"});
+            $("#" + PAPAYA_CONTROL_MAIN_GOTO_ORIGIN_BUTTON_CSS + index).css({display: "none"});
         }
     }
 
@@ -319,7 +337,7 @@ papaya.Container.fillContainerHTML = function (containerHTML, isDefault, params)
 
 
 papaya.Container.buildContainer = function (containerHTML, params, replaceIndex) {
-    var container, message, viewerHtml, loadUrl, imageRefs = null;
+    var container, message, viewerHtml, loadUrl, index, imageRefs = null;
 
     message = papaya.utilities.PlatformUtils.checkForBrowserCompatibility();
     viewerHtml = containerHTML.find("." + PAPAYA_VIEWER_CSS);
@@ -330,8 +348,14 @@ papaya.Container.buildContainer = function (containerHTML, params, replaceIndex)
         viewerHtml.addClass(PAPAYA_UTILS_UNSUPPORTED_MESSAGE_CSS);
         viewerHtml.html(message);
     } else {
+        if (replaceIndex !== undefined) {
+            index = replaceIndex;
+        } else {
+            index = papayaContainers.length;
+        }
+
         container = new papaya.Container(containerHTML);
-        container.containerIndex = papayaContainers.length;
+        container.containerIndex = index;
         container.preferences = new papaya.viewer.Preferences();
         papaya.Container.removeCheckForJSClasses(containerHTML, viewerHtml);
 
@@ -382,7 +406,17 @@ papaya.Container.buildContainer = function (containerHTML, params, replaceIndex)
                 imageRefs[0] = container.params.encodedImages[0];
             }
 
-            container.viewer.loadImage(container.params.encodedImages[0], false, true);
+            container.viewer.loadImage(imageRefs, false, true);
+        } else if (container.params.files) {
+            imageRefs = container.params.files[0];
+            if (!(imageRefs instanceof Array)) {
+                imageRefs = [];
+                imageRefs[0] = container.params.files[0];
+            }
+
+            container.viewer.loadImage(imageRefs, false, false);
+        } else {
+            container.viewer.finishedLoading();
         }
 
         container.resizeViewerComponents(false);
@@ -392,11 +426,9 @@ papaya.Container.buildContainer = function (containerHTML, params, replaceIndex)
             containerHTML.parent().width("100%");
         }
 
-        if (replaceIndex !== undefined) {
-            papayaContainers[replaceIndex] = container;
-        } else {
-            papayaContainers.push(container);
-        }
+        papayaContainers[index] = container;
+
+        papaya.Container.showLicense(container, params);
     }
 };
 
@@ -404,7 +436,7 @@ papaya.Container.buildContainer = function (containerHTML, params, replaceIndex)
 
 papaya.Container.prototype.rebuildContainer = function (params, index) {
     this.containerHtml.empty();
-    papaya.Container.fillContainerHTML(this.containerHtml, false, params);
+    papaya.Container.fillContainerHTML(this.containerHtml, false, params, index);
     papaya.Container.buildContainer(this.containerHtml, params, index);
 
     if ((papayaContainers.length === 1) && !papayaContainers[0].nestedViewer) {
@@ -428,6 +460,18 @@ papaya.Container.buildAllContainers = function () {
     } else {
         $("." + PAPAYA_CONTAINER_CLASS_NAME).each(function () {
             params = papaya.Container.findParameters($(this));
+
+            if (params === null) {
+                params = [];
+            }
+
+            if (params.fullScreen === true) {
+                params.fullScreenPadding = false;
+                params.kioskMode = true;
+                params.showControlBar = false;
+                $('body').css({"background-color":"black"});
+            }
+
             papaya.Container.fillContainerHTML($(this), false, params);
             papaya.Container.buildContainer($(this), params);
         });
@@ -440,8 +484,6 @@ papaya.Container.buildAllContainers = function () {
 
         papayaContainers[0].resizeViewerComponents(true);
     }
-
-    papaya.Container.showLicense(params);
 };
 
 
@@ -458,11 +500,15 @@ papaya.Container.startPapaya = function () {
 
 
 
-papaya.Container.resizePapaya = function () {
+papaya.Container.resizePapaya = function (ev, force) {
     var ctr;
 
+    papaya.Container.updateOrthogonalState();
+
     if ((papayaContainers.length === 1) && !papayaContainers[0].nestedViewer) {
-        papayaContainers[0].resizeViewerComponents(true);
+        if (!papaya.utilities.PlatformUtils.smallScreen || force) {
+            papayaContainers[0].resizeViewerComponents(true);
+        }
     } else {
         for (ctr = 0; ctr < papayaContainers.length; ctr += 1) {
             papayaContainers[ctr].resizeViewerComponents(true);
@@ -555,15 +601,46 @@ papaya.Container.isLicenseRead = function () {
 
 
 
-papaya.Container.showLicense = function (params) {
+papaya.Container.showLicense = function (container, params) {
     var showEula = (params && params.showEULA !== undefined) && params.showEULA;
 
     if (showEula && !papaya.Container.isLicenseRead()) {
-        var dialog = new papaya.ui.Dialog(this, "License", papaya.ui.Toolbar.LICENSE_DATA,
-            papaya.Container, null, papaya.Container.setLicenseRead);
+        var dialog = new papaya.ui.Dialog(container, "License", papaya.ui.Toolbar.LICENSE_DATA,
+            papaya.Container, null, papaya.Container.setLicenseRead, null, true);
         dialog.showDialog();
     }
 };
+
+
+
+papaya.Container.updateOrthogonalState = function () {
+    var ctr;
+
+    for (ctr = 0; ctr < papayaContainers.length; ctr += 1) {
+        if (papayaContainers[ctr].orthogonal &&
+            ((papaya.utilities.PlatformUtils.mobile || papayaContainers[ctr].orthogonalDynamic))) {
+            if ($(window).height() > $(window).width()) {
+                papayaContainers[ctr].orthogonalTall = true;
+            } else {
+                papayaContainers[ctr].orthogonalTall = false;
+            }
+        }
+    }
+};
+
+
+
+papaya.Container.reorientPapaya = function () {
+    var ctr;
+
+    for (ctr = 0; ctr < papayaContainers.length; ctr += 1) {
+        papayaContainers[ctr].toolbar.closeAllMenus();
+    }
+
+    papaya.Container.updateOrthogonalState();
+    papaya.Container.resizePapaya(null, true);
+};
+
 
 
 /*** Prototype Methods ***/
@@ -590,10 +667,10 @@ papaya.Container.prototype.getViewerDimensions = function () {
     parentWidth = this.containerHtml.parent().width() - (this.fullScreenPadding ? (2 * PAPAYA_PADDING) : 0);
     ratio = (this.orthogonal ? (this.hasSurface() ? 1.333 : 1.5) : 1);
 
-    if (this.orthogonalTall) {
+    if (this.orthogonalTall || !this.orthogonal) {
         height = (this.collapsable ? window.innerHeight : this.containerHtml.parent().height()) - (papaya.viewer.Display.SIZE + (this.kioskMode ? 0 : (papaya.ui.Toolbar.SIZE +
             PAPAYA_SPACING)) + PAPAYA_SPACING + (this.fullScreenPadding && !this.nestedViewer ? (2 * PAPAYA_CONTAINER_PADDING_TOP) : 0)) -
-            (this.showControlBar ? papaya.ui.Toolbar.SIZE : 0);
+            (this.showControlBar ? 2*papaya.ui.Toolbar.SIZE : 0);
 
         width = papayaRoundFast(height / ratio);
     } else {
@@ -611,7 +688,7 @@ papaya.Container.prototype.getViewerDimensions = function () {
         } else {
             maxHeight = window.innerHeight - (papaya.viewer.Display.SIZE + (this.kioskMode ? 0 : (papaya.ui.Toolbar.SIZE +
                 PAPAYA_SPACING)) + PAPAYA_SPACING + (this.fullScreenPadding ? (2 * PAPAYA_CONTAINER_PADDING_TOP) : 0)) -
-                (this.showControlBar ? papaya.ui.Toolbar.SIZE : 0);
+                (this.showControlBar ? 2*papaya.ui.Toolbar.SIZE : 0);
             if (height > maxHeight) {
                 height = maxHeight;
                 width = papayaRoundFast(height * ratio);
@@ -637,11 +714,23 @@ papaya.Container.prototype.getViewerPadding = function () {
 
 
 papaya.Container.prototype.readGlobalParams = function() {
-    this.kioskMode = (this.params.kioskMode === true);
+    this.kioskMode = (this.params.kioskMode === true) || papaya.utilities.PlatformUtils.smallScreen;
     this.combineParametric = (this.params.combineParametric === true);
+
+    if (this.params.loadingComplete) {
+        this.loadingComplete = this.params.loadingComplete;
+    }
 
     if (this.params.showControls !== undefined) {  // default is true
         this.showControls = this.params.showControls;
+    }
+
+    if (this.params.showImageButtons !== undefined) {  // default is true
+        this.showImageButtons = this.params.showImageButtons;
+    }
+
+    if (papaya.utilities.PlatformUtils.smallScreen) {
+        this.showImageButtons = false;
     }
 
     if (this.params.fullScreenPadding !== undefined) {  // default is true
@@ -652,15 +741,18 @@ papaya.Container.prototype.readGlobalParams = function() {
         this.orthogonal = this.params.orthogonal;
     }
 
-    this.surfaceLink = (this.params.surfaceLink === true);
+    this.surfaceParams.showSurfacePlanes = (this.params.showSurfacePlanes === true);
+    this.surfaceParams.showSurfaceCrosshairs = (this.params.showSurfaceCrosshairs === true);
+    this.surfaceParams.surfaceBackground = this.params.surfaceBackground;
 
     this.orthogonalTall = this.orthogonal && (this.params.orthogonalTall === true);
+    this.orthogonalDynamic = this.orthogonal && (this.params.orthogonalDynamic === true);
 
     if (this.params.allowScroll !== undefined) {  // default is true
         this.allowScroll = this.params.allowScroll;
     }
 
-    if (papaya.utilities.PlatformUtils.mobile) {
+    if (papaya.utilities.PlatformUtils.mobile || this.orthogonalDynamic) {
         if (this.orthogonal) {
             if ($(window).height() > $(window).width()) {
                 this.orthogonalTall = true;
@@ -681,16 +773,25 @@ papaya.Container.prototype.readGlobalParams = function() {
     if (this.params.contextManager !== undefined) {
         this.contextManager = this.params.contextManager;
     }
+
+    if (this.params.fullScreen === true) {
+        this.fullScreenPadding = this.params.fullScreenPadding = false;
+        this.kioskMode = this.params.kioskMode = true;
+        this.showControlBar = this.params.showControlBar = false;
+        $('body').css("background-color:'black'");
+    }
 };
 
 
 
 papaya.Container.prototype.reset = function () {
     this.loadingImageIndex = 0;
+    this.loadingSurfaceIndex = 0;
     this.nestedViewer = false;
     this.collapsable = false;
     this.orthogonal = true;
     this.orthogonalTall = false;
+    this.orthogonalDynamic = false;
     this.kioskMode = false;
     this.showControls = true;
     this.showControlBar = false;
@@ -763,7 +864,7 @@ papaya.Container.prototype.resizeViewerComponents = function (resize) {
             $("." + PAPAYA_CONTROL_MAIN_SLIDER).css({display: "none"});
         }
 
-        if (dims[0] < 400) {
+        if (dims[0] < 200) {
             $("." + PAPAYA_CONTROL_SWAP_BUTTON_CSS).css({display: "none"});
         } else {
             $("." + PAPAYA_CONTROL_SWAP_BUTTON_CSS).css({display: "inline"});
@@ -987,7 +1088,7 @@ papaya.Container.prototype.addDroppedFile = function (file) {
 
 
 papaya.Container.prototype.droppedFilesFinishedLoading = function () {
-    if (gifti.isThisFormat(papayaDroppedFiles[0].name)) {
+    if (papaya.surface.Surface.findSurfaceType(papayaDroppedFiles[0].name) !== papaya.surface.Surface.SURFACE_TYPE_UNKNOWN) {
         this.viewer.loadSurface(papayaDroppedFiles);
     } else {
         this.viewer.loadImage(papayaDroppedFiles);
@@ -1042,13 +1143,15 @@ papaya.Container.prototype.hasAtlasToLoad = function () {
 
 
 papaya.Container.prototype.hasSurfaceToLoad = function () {
-    if (this.params.surfaces) {
-        if (!papaya.utilities.PlatformUtils.isWebGLSupported()) {
-            console.log("Warning: This browser version is not able to load surfaces.");
-            return false;
-        }
+    if (!papaya.utilities.PlatformUtils.isWebGLSupported()) {
+        console.log("Warning: This browser version is not able to load surfaces.");
+        return false;
+    }
 
+    if (this.params.surfaces) {
         return (this.loadingSurfaceIndex < this.params.surfaces.length);
+    } else if (this.params.encodedSurfaces) {
+        return (this.loadingSurfaceIndex < this.params.encodedSurfaces.length);
     }
 
     return false;
@@ -1057,16 +1160,34 @@ papaya.Container.prototype.hasSurfaceToLoad = function () {
 
 
 papaya.Container.prototype.loadNextSurface = function () {
-    var loadingNext = false, imageRef;
+    var loadingNext = false, imageRefs;
 
-    if (this.loadingSurfaceIndex < this.params.surfaces.length) {
-        loadingNext = true;
-        imageRef = this.params.surfaces[this.loadingSurfaceIndex];
-        this.loadingSurfaceIndex += 1;
-        this.viewer.loadSurface(imageRef, true, false);
-    } else {
-        this.params.loadedSurfaces = this.params.surfaces;
-        this.params.surfaces = [];
+    if (this.params.surfaces) {
+        if (this.loadingSurfaceIndex < this.params.surfaces.length) {
+            loadingNext = true;
+            imageRefs = this.params.surfaces[this.loadingSurfaceIndex];
+            this.loadingSurfaceIndex += 1;
+            this.viewer.loadSurface(imageRefs, true, false);
+        } else {
+            this.params.loadedSurfaces = this.params.surfaces;
+            this.params.surfaces = [];
+        }
+    } else if (this.params.encodedSurfaces) {
+        if (this.loadingSurfaceIndex < this.params.encodedSurfaces.length) {
+            loadingNext = true;
+            imageRefs = this.params.encodedSurfaces[this.loadingSurfaceIndex];
+
+            if (!(imageRefs instanceof Array)) {
+                imageRefs = [];
+                imageRefs[0] = this.params.encodedSurfaces[this.loadingSurfaceIndex];
+            }
+
+            this.viewer.loadSurface(imageRefs, false, true);
+            this.loadingSurfaceIndex += 1;
+        } else {
+            this.params.loadedEncodedSurfaces = this.params.encodedSurfaces;
+            this.params.encodedSurfaces = [];
+        }
     }
 
     return loadingNext;
@@ -1111,7 +1232,6 @@ papaya.Container.prototype.loadNextImage = function () {
         }
     } else if (this.params.files) {
         if (this.loadingImageIndex < this.params.files.length) {
-
             loadingNext = true;
             imageRefs = this.params.files[this.loadingImageIndex];
 
@@ -1137,17 +1257,27 @@ papaya.Container.prototype.readyForDnD = function () {
     return !this.kioskMode && ((this.params.images === undefined) ||
         (this.loadingImageIndex >= this.params.images.length)) &&
         ((this.params.encodedImages === undefined) ||
-        (this.loadingImageIndex >= this.params.encodedImages.length));
+        (this.loadingImageIndex >= this.params.encodedImages.length)) &&
+        ((this.params.encodedSurfaces === undefined) ||
+        (this.loadingSurfaceIndex >= this.params.encodedSurfaces.length));
 };
 
 
 
-papaya.Container.prototype.findLoadableImage = function (name) {
+papaya.Container.prototype.findLoadableImage = function (name, surface) {
     var ctr;
 
     for (ctr = 0; ctr < papayaLoadableImages.length; ctr += 1) {
-        if (papayaLoadableImages[ctr].name == name) {  // needs to be ==, not ===
-            return papayaLoadableImages[ctr];
+        if (surface) {
+            if (papayaLoadableImages[ctr].surface) {
+                if (papayaLoadableImages[ctr].name == name) {  // needs to be ==, not ===
+                    return papayaLoadableImages[ctr];
+                }
+            }
+        } else {
+            if (papayaLoadableImages[ctr].name == name) {  // needs to be ==, not ===
+                return papayaLoadableImages[ctr];
+            }
         }
     }
 
@@ -1251,6 +1381,12 @@ papaya.Container.prototype.isDesktopMode = function () {
 
 
 
+papaya.Container.prototype.hasLoadedDTI = function () {
+    return this.viewer.hasLoadedDTI();
+};
+
+
+
 papaya.Container.prototype.disableScrollWheel = function () {
     return (this.isNestedViewer() || papaya.utilities.PlatformUtils.ios);
 };
@@ -1302,47 +1438,41 @@ papaya.Container.prototype.coordinateChanged = function (viewer) {
 
     if (viewer.surfaceView) {
         viewer.surfaceView.updateActivePlanes();
-        viewer.surfaceView.draw();
     }
 
-    if (this.contextManager) {
+    if (this.contextManager && this.contextManager.clearContext) {
         this.contextManager.clearContext();
     }
 };
 
 
-/*** Window Events ***/
 
-window.onload = papaya.Container.startPapaya;
-
-
-window.addEventListener('resize', papaya.Container.resizePapaya);
-
-
-window.onorientationchange = function () {
-    var ctr;
-
-    for (ctr = 0; ctr < papayaContainers.length; ctr += 1) {
-        papayaContainers[ctr].toolbar.closeAllMenus();
-    }
-
-    if (papaya.utilities.PlatformUtils.mobile) {
-        for (ctr = 0; ctr < papayaContainers.length; ctr += 1) {
-            if (papayaContainers[ctr].orthogonal) {
-                if ($(window).height() > $(window).width()) {
-                    papayaContainers[ctr].orthogonalTall = true;
-                } else {
-                    papayaContainers[ctr].orthogonalTall = false;
-                }
-            }
-        }
-    }
-
-    papaya.Container.resizePapaya();
+papaya.Container.prototype.canCurrentOverlayLoadNegatives = function () {
+    var overlay = this.viewer.currentScreenVolume;
+    return (!overlay.negative && (overlay.negativeScreenVol === null));
 };
 
 
 
+papaya.Container.prototype.canCurrentOverlayLoadMod = function () {
+    var overlay = this.viewer.currentScreenVolume;
+    return (overlay.dti && (overlay.dtiVolumeMod === null));
+};
+
+
+
+papaya.Container.prototype.canCurrentOverlayModulate = function () {
+    var overlay = this.viewer.currentScreenVolume;
+    return (overlay.dti && (overlay.dtiVolumeMod !== null));
+};
+
+
+
+/*** Window Events ***/
+
+window.addEventListener('resize', papaya.Container.resizePapaya, false);
+window.addEventListener("orientationchange", papaya.Container.reorientPapaya, false);
+window.addEventListener("load", papaya.Container.startPapaya, false);
 window.addEventListener('message', function (msg) {
     if (msg.data === PAPAYA_MANGO_INSTALLED) {
         papaya.mangoinstalled = true;

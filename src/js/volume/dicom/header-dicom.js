@@ -314,7 +314,7 @@ papaya.volume.dicom.HeaderDICOM.prototype.getVoxelDimensions = function () {
             sliceDis = Math.abs(this.series.images[0].getSliceLocation() - this.series.images[1].getSliceLocation());
 
             if (sliceDis === 0) {
-                sliceDis = this.series.images[0].getSliceThickness();
+                sliceDis = Math.max(this.series.images[0].getSliceGap(), this.series.images[0].getSliceThickness());
             }
 
             voxelDimensions = new papaya.volume.VoxelDimensions(pixelSpacing[1], pixelSpacing[0], sliceDis,
@@ -536,7 +536,14 @@ papaya.volume.dicom.HeaderDICOM.prototype.getOrientationCertainty = function () 
 
 
 papaya.volume.dicom.HeaderDICOM.prototype.getOrigin = function () {
-    return new papaya.core.Coordinate(0, 0, 0);
+    var m = this.getBestTransform();
+
+    if (m) {
+        var invm = numeric.inv(m);
+        return new papaya.core.Coordinate(invm[0][3], invm[1][3], invm[2][3]);
+    } else {
+        return new papaya.core.Coordinate(0, 0, 0);
+    }
 };
 
 
@@ -581,15 +588,31 @@ papaya.volume.dicom.HeaderDICOM.prototype.getImageDescription = function () {
 
 
 
-
 papaya.volume.dicom.HeaderDICOM.prototype.getBestTransform = function () {
-    return null;
+    var cosines = this.series.images[0].getImageDirections(),
+        m = null;
+
+    if (cosines) {
+        var vs = this.getVoxelDimensions();
+        var coord = this.series.images[0].getImagePosition();
+        var cosx = [cosines[0], cosines[1], cosines[2]];
+        var cosy = [cosines[3], cosines[4], cosines[5]];
+        var cosz = [cosx[1] * cosy[2] - cosx[2] * cosy[1],
+            cosx[2] * cosy[0] - cosx[0] * cosy[2],
+            cosx[0] * cosy[1] - cosx[1] * cosy[0]];
+        m = [ [cosx[0] * vs.colSize * -1, cosy[0] * vs.rowSize, cosz[0] * vs.sliceSize, -1 * coord[0]],
+            [cosx[1] * vs.colSize, cosy[1] * vs.rowSize * -1, cosz[1] * vs.sliceSize, -1 * coord[1]],
+            [cosx[2] * vs.colSize, cosy[2] * vs.rowSize, cosz[2] * vs.sliceSize, coord[2]],
+            [0,       0,       0,       1] ];
+    }
+
+    return m;
 };
 
 
 
 papaya.volume.dicom.HeaderDICOM.prototype.getBestTransformOrigin = function () {
-    return null;
+    return this.getOrigin();
 };
 
 

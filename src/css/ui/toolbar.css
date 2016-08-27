@@ -20,6 +20,12 @@
 .papaya-kiosk-controls {
     margin: 5px auto;
     list-style: none;
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none;   /* Chrome/Safari/Opera */
+    -khtml-user-select: none;    /* Konqueror */
+    -moz-user-select: none;      /* Firefox */
+    -ms-user-select: none;       /* IE/Edge */
+    user-select: none;           /* non-prefixed version, currently */
 }
 
 
@@ -149,4 +155,9 @@
     font-size: 14px;
     height: 25px;
     background-color: lightgray;
+}
+
+
+.papaya-controlbar-label {
+    color: #000000;
 }

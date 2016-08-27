@@ -36,7 +36,8 @@ papaya.ui.Menu = papaya.ui.Menu || function (viewer, menuData, callback, dataSou
     this.menuId = (this.label + "Menu").replace(/ /g, "_").replace("...", "_") + (this.modifier || "");
     this.isRight = (menuData.icons !== null);
     this.isImageButton = menuData.imageButton;
-    this.htmlParent = ((this.viewer.container.showControlBar && this.viewer.container.kioskMode) ?
+    this.isSurfaceButton = menuData.surfaceButton;
+    this.htmlParent = ((this.viewer.container.showControlBar && this.viewer.container.kioskMode && this.viewer.container.showImageButtons) ?
         this.viewer.container.sliderControlHtml : this.viewer.container.toolbarHtml);
 };
 
@@ -55,7 +56,7 @@ papaya.ui.Menu.doShowMenu = function (viewer, el, menu, right) {
     mHeight = $(menu).outerHeight();
     left = pos.left + (right ? ((-1 * mWidth) + eWidth) : 5) + "px";
 
-    if (viewer.container.showControlBar && viewer.container.kioskMode) {
+    if (viewer.container.showControlBar && viewer.container.kioskMode && viewer.container.showImageButtons) {
         top = ((posV.top) + $(viewer.canvas).outerHeight() + PAPAYA_SPACING + dHeight - mHeight) + "px";
     } else {
         top = (posV.top) + "px";
@@ -117,7 +118,7 @@ papaya.ui.Menu.prototype.buildMenuButton = function () {
             "' style='width:" + papaya.viewer.ColorTable.ICON_SIZE + "px; height:" +
             papaya.viewer.ColorTable.ICON_SIZE + "px; vertical-align:bottom; ";
 
-        if (this.dataSource.isSelected(parseInt(this.imageIndex, 10))) {
+        if (!this.isSurfaceButton && this.dataSource.isSelected(parseInt(this.imageIndex, 10))) {
             html += "border:2px solid #FF5A3D;background-color:#eeeeee;padding:1px;";
         } else {
             html += "border:2px outset lightgray;background-color:#eeeeee;padding:1px;";
@@ -205,6 +206,10 @@ papaya.ui.Menu.prototype.buildMenu = function () {
     html = "<ul id='" + this.menuId + "' class='" + PAPAYA_MENU_CSS + "'></ul>";
     this.htmlParent.append(html);
 
+    if (this.viewer.container.contextManager && papaya.utilities.PlatformUtils.smallScreen) {
+        $('#' + this.menuId)[0].style.width = (this.viewer.viewerDim - 10) + 'px';
+    }
+
     for (ctr = 0; ctr < this.items.length; ctr += 1) {
         if (!this.items[ctr].hide) {
             buttonHtml = this.items[ctr].buildHTML(this.menuId);
@@ -248,12 +253,21 @@ papaya.ui.Menu.prototype.showContextMenu = function () {
                 offset = (this.viewer.contextMenuMousePositionY + mHeight) - (posV.top + dHeight + $(this.viewer.canvas).outerHeight() + PAPAYA_SPACING) - 1;
             }
 
-            menuHtml.css({
-                position: 'absolute',
-                zIndex: 100,
-                left: this.viewer.contextMenuMousePositionX,
-                top: this.viewer.contextMenuMousePositionY - offset
-            });
+            if (this.viewer.container.contextManager && papaya.utilities.PlatformUtils.smallScreen) {
+                menuHtml.css({
+                    position: 'absolute',
+                    zIndex: 100,
+                    left: this.viewer.canvasRect.left,
+                    top: this.viewer.canvasRect.top - offset
+                });
+            } else {
+                menuHtml.css({
+                    position: 'absolute',
+                    zIndex: 100,
+                    left: this.viewer.contextMenuMousePositionX + this.viewer.canvasRect.left,
+                    top: this.viewer.contextMenuMousePositionY + this.viewer.canvasRect.top - offset
+                });
+            }
 
             menuHtml.hide().fadeIn(200);
         }
